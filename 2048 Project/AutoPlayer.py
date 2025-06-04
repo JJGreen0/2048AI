@@ -1,5 +1,4 @@
 from PIL import ImageGrab
-import pytesseract
 import numpy as np
 import time
 import math
@@ -17,10 +16,37 @@ GAME_BBOX = (700, 314, 1204, 816)
 model = PPO.load(MODEL_PATH)
 
 
+COLOUR_MAP = {
+    0: (205, 193, 180),
+    2: (238, 228, 218),
+    4: (237, 224, 200),
+    8: (242, 177, 121),
+    16: (245, 149, 99),
+    32: (246, 124, 95),
+    64: (246, 94, 59),
+    128: (237, 207, 114),
+    256: (237, 204, 97),
+    512: (237, 200, 80),
+    1024: (237, 197, 63),
+    2048: (237, 194, 46),
+}
+
+
+def closest_value(colour):
+    """Return the tile value with the colour closest to the given RGB tuple."""
+    best_val = 0
+    best_diff = float('inf')
+    for value, ref in COLOUR_MAP.items():
+        diff = sum((c - r) ** 2 for c, r in zip(colour, ref))
+        if diff < best_diff:
+            best_diff = diff
+            best_val = value
+    return best_val
+
+
 def capture_grid():
-    """Capture the game area and return the grid as integers."""
+    """Capture the game area and return the grid as integers using colour matching."""
     image = ImageGrab.grab(bbox=GAME_BBOX)
-    image = image.convert('L')  # grayscale
     tile_width = image.width // 4
     tile_height = image.height // 4
     grid = [[0 for _ in range(4)] for _ in range(4)]
@@ -29,11 +55,8 @@ def capture_grid():
             left = j * tile_width
             top = i * tile_height
             tile = image.crop((left, top, left + tile_width, top + tile_height))
-            text = pytesseract.image_to_string(
-                tile,
-                config='--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789'
-            )
-            grid[i][j] = int(text.strip()) if text.strip().isdigit() else 0
+            colour = tile.getpixel((tile_width // 2, tile_height // 2))[:3]
+            grid[i][j] = closest_value(colour)
     return grid
 
 
